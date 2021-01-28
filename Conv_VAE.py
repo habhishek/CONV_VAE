@@ -12,13 +12,14 @@ import tensorflow.keras as tfk
 import tensorflow.keras.layers as tfkl
 import time
 
+
 # Define the VAE Model Class
 class VAE(tfk.Model):
-    '''
-    Uses keras model subclassing to implement the VAE model consisting of the Encoder and Decoder sub networks
+    """
+    Uses keras model subclassing to implement the VAE model consisting of the Encoder and Decoder sub networks.
+    KL_Divergence term of the loss is added to the model via the add_loss() method
     A forward pass through the model is defined by the keras Functional API call()
-    '''
-
+    """
     def __init__(self, latent_dim, **kwargs):
         super(VAE, self).__init__()
         self.latent_dim = latent_dim
@@ -70,6 +71,12 @@ class VAE(tfk.Model):
 
     # Functional
     def call(self, x_input):
+        """
+        Forward pass through the encoder-decoder model.
+        Calculates the KL_Divergence D_KL(q(z|x)||p(z)) analytically
+        :param x_input: Input image of shape [28,28,1]
+        :return: the logits of reconstructed image
+        """
         z_sample, mean, logvar = self.encode(x_input)
         kl_divergence = tf.math.reduce_mean(- 0.5 *
                                             tf.math.reduce_sum(logvar - tf.math.square(mean) -
