@@ -40,6 +40,7 @@ class VAE(tfk.Model):
 
     def encode(self, x_input):
         mean, logvar = tf.split(self.encoder_z(x_input), num_or_size_splits=2, axis=1)
+        # Reparameterize the z_sample
         eps = tf.random.normal(shape=mean.shape)
         z_sample = eps * tf.exp(logvar * .5) + mean
         return z_sample, mean, logvar
@@ -85,4 +86,40 @@ class VAE(tfk.Model):
         # VAE is inherited from tfk.Model, thus have class method add_loss()
         self.add_loss(kl_divergence)
         return x_logits
+
+
+# The partial VAE loss function - only the reconstruction loss part
+def partial_vae_loss(x_true, model):
+    """
+    Calcuate the reconstruction loss or the neg log_likelihood loss of the reconstructed logits
+    :param x_true: Input image
+    :param model: An instance of the VAE model
+    :return: Reconstruction loss term of the VAE loss
+    """
+    # reconstruct the input by passing into the model
+    x_logits = model(x_true)
+    cross_entropy = tf.nn.sigmoid_cross_entropy_with_logits(labels=x_true, logits=x_logits)
+    neg_log_likelihood = tf.reduce_sum(cross_entropy, axis=[1, 2, 3])
+    return tf.reduce_mean(neg_log_likelihood)
+
+
+@tf.function
+def train_step(x_true, model, optimizer, loss_metric):
+    """
+    Defines the train step using gradient tape
+    :param x_true: Input image
+    :param model: An Instance of the VAE model
+    :param optimizer: An optimizer function from tf.keras.optimizers
+    :param loss_metric: The loss metric
+    :return:
+    """
+    with tf.GradientTape() as tape:
+        neg_log_lik = partial_vae_loss(x_true, model)
+        # kl loss from model.losses
+        kl_loss = tf.reduce_sum(model.losses)
+        total_vae_loss = neg_log_lik + kl_loss
+
+    gradients = tape.gradient(total_vae_loss, model.trainable_variables)
+    optimizer.apply_gradients(zip(gradients, model.trainable_variables))
+    loss_metric(total_vae_loss)
 
